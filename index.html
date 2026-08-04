@@ -421,13 +421,17 @@ function getCompletedDays() {
   const days = {};
   for (const key in state.cards) {
     const c = state.cards[key];
-    if (!c.introducedDate) continue;
-    (days[c.introducedDate] = days[c.introducedDate] || []).push(Number(key));
+    const bucket = c.introducedDate || "unknown";
+    (days[bucket] = days[bucket] || []).push(Number(key));
   }
-  return Object.keys(days).sort().reverse().map(date => ({ date, indices: days[date] }));
+  const dated = Object.keys(days).filter(d => d !== "unknown").sort().reverse()
+    .map(date => ({ date, indices: days[date] }));
+  const legacy = days["unknown"] ? [{ date: "unknown", indices: days["unknown"] }] : [];
+  return dated.concat(legacy);
 }
 
 function formatDate(dateStr) {
+  if (dateStr === "unknown") return "Tidigare inlärda ord";
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" });
 }
