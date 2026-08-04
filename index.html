@@ -114,6 +114,18 @@
   .card-back {
     transform: rotateY(180deg);
   }
+  .card-front {
+    pointer-events: auto;
+  }
+  .card-flip-inner.flipped .card-front {
+    pointer-events: none;
+  }
+  .card-back {
+    pointer-events: none;
+  }
+  .card-flip-inner.flipped .card-back {
+    pointer-events: auto;
+  }
   .flip-back-btn {
     position: absolute;
     top: 12px;
