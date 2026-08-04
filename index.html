@@ -80,6 +80,57 @@
     text-align: center;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   }
+  .card-flip {
+    perspective: 1200px;
+    min-height: 260px;
+  }
+  .card-flip-inner {
+    position: relative;
+    width: 100%;
+    min-height: 260px;
+    transition: transform 0.5s cubic-bezier(.4, .2, .2, 1);
+    transform-style: preserve-3d;
+  }
+  .card-flip-inner.flipped {
+    transform: rotateY(180deg);
+  }
+  .card-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 40px 28px;
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card-back {
+    transform: rotateY(180deg);
+  }
+  .flip-back-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    flex: none;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
   .pos-tag {
     font-size: 0.7rem;
     text-transform: uppercase;
@@ -333,15 +384,34 @@ function renderCard() {
   const isNew = !state.cards[currentIndex];
 
   cardArea.innerHTML = `
-    <div class="card">
-      ${isNew ? '<div class="badge-new">NYTT ORD</div>' : ''}
-      <div class="pos-tag">${posLabel(w[1])}</div>
-      <div class="es-word">${w[0]}</div>
-      <div class="es-sentence">${w[3]}</div>
-      <div id="answerArea"></div>
+    <div class="card-flip">
+      <div class="card-flip-inner" id="cardInner">
+        <div class="card-face card-front">
+          ${isNew ? '<div class="badge-new">NYTT ORD</div>' : ''}
+          <div class="pos-tag">${posLabel(w[1])}</div>
+          <div class="es-word">${w[0]}</div>
+          <div class="es-sentence">${w[3]}</div>
+          <button class="btn-show" id="showBtn">Visa svar</button>
+        </div>
+        <div class="card-face card-back">
+          <button class="flip-back-btn" id="flipBackBtn" title="Visa frågan igen">↺</button>
+          <div class="sv-word">${w[2]}</div>
+          <div class="sv-sentence">${w[4]}</div>
+          <div class="btn-row">
+            <button class="btn-hard" id="btnHard">Svårt</button>
+            <button class="btn-good" id="btnGood">Bra</button>
+            <button class="btn-easy" id="btnEasy">Lätt</button>
+          </div>
+        </div>
+      </div>
     </div>
   `;
   showFront();
+  document.getElementById("showBtn").onclick = showAnswer;
+  document.getElementById("flipBackBtn").onclick = hideAnswer;
+  document.getElementById("btnHard").onclick = () => grade("hard");
+  document.getElementById("btnGood").onclick = () => grade("good");
+  document.getElementById("btnEasy").onclick = () => grade("easy");
   updateStats();
 }
 
@@ -353,28 +423,19 @@ function posLabel(pos) {
 }
 
 function showFront() {
-  const answerArea = document.getElementById("answerArea");
-  answerArea.innerHTML = `<button class="btn-show" id="showBtn">Visa svar</button>`;
-  document.getElementById("showBtn").onclick = showAnswer;
+  showingAnswer = false;
+  const inner = document.getElementById("cardInner");
+  if (inner) inner.classList.remove("flipped");
 }
 
 function showAnswer() {
   showingAnswer = true;
-  const w = WORDS[currentIndex];
-  const answerArea = document.getElementById("answerArea");
-  answerArea.innerHTML = `
-    <div class="divider"></div>
-    <div class="sv-word">${w[2]}</div>
-    <div class="sv-sentence">${w[4]}</div>
-    <div class="btn-row">
-      <button class="btn-hard" id="btnHard">Svårt</button>
-      <button class="btn-good" id="btnGood">Bra</button>
-      <button class="btn-easy" id="btnEasy">Lätt</button>
-    </div>
-  `;
-  document.getElementById("btnHard").onclick = () => grade("hard");
-  document.getElementById("btnGood").onclick = () => grade("good");
-  document.getElementById("btnEasy").onclick = () => grade("easy");
+  document.getElementById("cardInner").classList.add("flipped");
+}
+
+function hideAnswer() {
+  showingAnswer = false;
+  document.getElementById("cardInner").classList.remove("flipped");
 }
 
 function grade(rating) {
