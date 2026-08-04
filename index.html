@@ -114,6 +114,18 @@
   .card-back {
     transform: rotateY(180deg);
   }
+  .card-front {
+    pointer-events: auto;
+  }
+  .card-flip-inner.flipped .card-front {
+    pointer-events: none;
+  }
+  .card-back {
+    pointer-events: none;
+  }
+  .card-flip-inner.flipped .card-back {
+    pointer-events: auto;
+  }
   .flip-back-btn {
     position: absolute;
     top: 12px;
@@ -232,6 +244,47 @@
     border-radius: 100px;
     margin-bottom: 10px;
   }
+
+  .practice-tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 3px 10px;
+    border-radius: 100px;
+    margin-bottom: 10px;
+  }
+  .day-list {
+    text-align: left;
+    align-items: stretch;
+  }
+  .day-list h2 { margin: 0 0 4px; }
+  .day-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 340px;
+    overflow-y: auto;
+    margin-top: 14px;
+  }
+  .day-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-weight: 600;
+    color: var(--ink);
+    text-align: left;
+    width: 100%;
+  }
+  .day-item:hover { background: var(--accent-soft); }
+  .day-date { text-transform: capitalize; }
+  .day-count { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -252,6 +305,8 @@
   <div id="cardArea"></div>
 
   <footer>
+    <button class="reset-link" id="completedDaysBtn">📅 Slutförda dagar</button>
+    <span style="margin:0 8px;color:var(--muted);">·</span>
     <button class="reset-link" id="resetBtn">Återställ all data</button>
   </footer>
 </div>
@@ -298,6 +353,8 @@ let state = loadState();
 let queue = [];
 let currentIndex = null;
 let showingAnswer = false;
+let practiceQueue = null;
+let practicePos = 0;
 
 function buildQueue() {
   const today = todayStr();
@@ -360,8 +417,120 @@ function updateStats() {
   document.getElementById("progressFill").style.width = pct + "%";
 }
 
+function getCompletedDays() {
+  const days = {};
+  for (const key in state.cards) {
+    const c = state.cards[key];
+    if (!c.introducedDate) continue;
+    (days[c.introducedDate] = days[c.introducedDate] || []).push(Number(key));
+  }
+  return Object.keys(days).sort().reverse().map(date => ({ date, indices: days[date] }));
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" });
+}
+
+function renderCompletedDaysList() {
+  const cardArea = document.getElementById("cardArea");
+  const days = getCompletedDays();
+
+  if (days.length === 0) {
+    cardArea.innerHTML = `
+      <div class="card empty-state">
+        <div class="big">📅</div>
+        <h2>Inga slutförda dagar än</h2>
+        <p>Så fort du har lärt dig nya ord dyker de upp här, grupperade per dag, så du kan repetera dem igen.</p>
+        <button class="btn-show" id="backBtn" style="margin-top:16px;">Tillbaka</button>
+      </div>`;
+    document.getElementById("backBtn").onclick = renderCard;
+    return;
+  }
+
+  cardArea.innerHTML = `
+    <div class="card day-list">
+      <h2>Slutförda dagar</h2>
+      <p class="hint" style="margin:0;">Klicka på en dag för att repetera orden du lärde dig då. Det påverkar inte ditt vanliga repetitionsschema.</p>
+      <div class="day-items">
+        ${days.map(d => `
+          <button class="day-item" data-date="${d.date}">
+            <span class="day-date">${formatDate(d.date)}</span>
+            <span class="day-count">${d.indices.length} ord</span>
+          </button>
+        `).join("")}
+      </div>
+      <button class="btn-show" id="backBtn" style="margin-top:18px;">Tillbaka</button>
+    </div>
+  `;
+  days.forEach(d => {
+    cardArea.querySelector(`[data-date="${d.date}"]`).onclick = () => startPractice(d.indices);
+  });
+  document.getElementById("backBtn").onclick = renderCard;
+}
+
+function startPractice(indices) {
+  practiceQueue = indices.slice();
+  for (let i = practiceQueue.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [practiceQueue[i], practiceQueue[j]] = [practiceQueue[j], practiceQueue[i]];
+  }
+  practicePos = 0;
+  renderCard();
+}
+
+function renderPracticeCard() {
+  const cardArea = document.getElementById("cardArea");
+
+  if (practicePos >= practiceQueue.length) {
+    cardArea.innerHTML = `
+      <div class="card empty-state">
+        <div class="big">🎉</div>
+        <h2>Övningsrundan klar!</h2>
+        <p>Du har repeterat alla ord från den dagen. Det här var bara extra övning — ditt vanliga repetitionsschema är opåverkat.</p>
+        <button class="btn-show" id="doneBtn" style="margin-top:16px;">Tillbaka till listan</button>
+      </div>`;
+    document.getElementById("doneBtn").onclick = () => { practiceQueue = null; renderCompletedDaysList(); };
+    return;
+  }
+
+  currentIndex = practiceQueue[practicePos];
+  showingAnswer = false;
+  const w = WORDS[currentIndex];
+
+  cardArea.innerHTML = `
+    <div class="practice-tag">Övning · ${practicePos + 1}/${practiceQueue.length}</div>
+    <div class="card-flip">
+      <div class="card-flip-inner" id="cardInner">
+        <div class="card-face card-front">
+          <div class="pos-tag">${posLabel(w[1])}</div>
+          <div class="es-word">${w[0]}</div>
+          <div class="es-sentence">${w[3]}</div>
+          <button class="btn-show" id="showBtn">Visa svar</button>
+        </div>
+        <div class="card-face card-back">
+          <button class="flip-back-btn" id="flipBackBtn" title="Visa frågan igen">↺</button>
+          <div class="sv-word">${w[2]}</div>
+          <div class="sv-sentence">${w[4]}</div>
+          <button class="btn-show" id="nextBtn">Nästa ord</button>
+        </div>
+      </div>
+    </div>
+  `;
+  showFront();
+  document.getElementById("showBtn").onclick = showAnswer;
+  document.getElementById("flipBackBtn").onclick = hideAnswer;
+  document.getElementById("nextBtn").onclick = () => { practicePos++; renderPracticeCard(); };
+}
+
 function renderCard() {
   const cardArea = document.getElementById("cardArea");
+
+  if (practiceQueue) {
+    renderPracticeCard();
+    return;
+  }
+
   if (queue.length === 0) {
     const introduced = totalIntroduced();
     const remaining = WORDS.length - introduced;
@@ -451,7 +620,8 @@ function grade(rating) {
   const due = addDays(todayStr(), interval);
 
   const reps = isNew ? 1 : (state.cards[idx].reps || 0) + 1;
-  state.cards[idx] = { box, due, reps };
+  const introducedDate = isNew ? todayStr() : state.cards[idx].introducedDate;
+  state.cards[idx] = { box, due, reps, introducedDate };
 
   if (isNew) {
     state.newToday.count += 1;
@@ -478,16 +648,29 @@ document.addEventListener("keydown", (e) => {
       showAnswer();
     }
   } else if (showingAnswer) {
+    if (practiceQueue) {
+      if (e.key === "1" || e.key === "2" || e.key === "3" || e.key === "Enter") {
+        practicePos++;
+        renderPracticeCard();
+      }
+      return;
+    }
     if (e.key === "1") grade("hard");
     else if (e.key === "2") grade("good");
     else if (e.key === "3") grade("easy");
   }
 });
 
+document.getElementById("completedDaysBtn").onclick = () => {
+  practiceQueue = null;
+  renderCompletedDaysList();
+};
+
 document.getElementById("resetBtn").onclick = () => {
   if (confirm("Är du säker? Detta raderar all inlärningsdata permanent.")) {
     localStorage.removeItem(STORAGE_KEY);
     state = loadState();
+    practiceQueue = null;
     buildQueue();
     renderCard();
   }
